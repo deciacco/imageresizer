@@ -1,0 +1,262 @@
+<?php
+/**
+ *  Copyright (C) 2007  Deciacco.com.
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/gpl-3.0.txt>.
+ */
+
+/**
+ * ImageResizer v0.4.3 Alpha
+ * 
+ * Resizes all JPEG, GIF, and PNG images in a given directory.
+ * 
+ * If you make any enhancements, please send a copy to contact A-T deciacco D_O_T com.
+ * Comments and suggestions are also welcome.
+ */
+
+/**
+ * Creates a new image of another.
+ */
+function createnewimage(&$pFileInfo, $pOutputDirectory, 
+                                $target, 
+                                $pImgQuality, $pFilePostfix)
+{
+	$imageFileFullName = $pFileInfo['dirname'].DIRECTORY_SEPARATOR.$pFileInfo['basename'];
+
+    list($origw, $origh) = getimagesize($imageFileFullName);
+	
+	if($origw > $origh)
+        $pct = ($target / $origw);
+    else
+        $pct = ($target / $origh);
+
+	$pImageMaxW = round($origw * $pct);
+    $pImageMaxH = round($origh * $pct);
+	
+	$resized = imagecreatetruecolor($pImageMaxW, $pImageMaxH);
+    $fileExt = strtolower($pFileInfo['extension']);
+
+	switch($fileExt)
+    {
+        case 'jpg':
+            $image = imagecreatefromjpeg($imageFileFullName);
+            break;
+        case 'gif':
+            $image = imagecreatefromgif($imageFileFullName);
+            break;
+        case 'png':
+            $image = imagecreatefrompng($imageFileFullName);
+    }
+    
+    imagecopyresampled($resized, $image, 0, 0, 0, 0, 
+                        $pImageMaxW, $pImageMaxH, $origw, $origh);
+	
+    switch($fileExt)
+    {
+        case 'jpg':
+            imagejpeg(
+                $resized, 
+                $pOutputDirectory.$pFileInfo['filename'].$pFilePostfix.".$fileExt", 
+                $pImgQuality);
+            break;
+        case 'gif':
+            imagegif($resized, 
+                $pOutputDirectory.$pFileInfo['filename'].$pFilePostfix.".$fileExt", 
+                $pImgQuality);
+            break;
+        case 'png':
+            // Image quality for png must be 0-9
+            imagepng($resized, 
+                $pOutputDirectory.$pFileInfo['filename'].$pFilePostfix.".$fileExt", 
+                round($pImgQuality/10)-1);
+    }
+}
+
+/**
+ * Creates the output directory if it doesn't exist already.
+ */
+function createoutputdirectory($pOutputDirectory, $pOutDirName)
+{
+    $success = true;
+
+    if(!file_exists($pOutputDirectory.DIRECTORY_SEPARATOR.$pOutDirName))
+        $success = @mkdir($pOutputDirectory.DIRECTORY_SEPARATOR.$pOutDirName);
+
+    return $success;
+}
+
+/**
+ * Loops through each file in the image folder and calls the resize function on each image.
+ */
+function processimagedirectory($pImagesDirectory, $pOutputDirectory, 
+                                $target, 
+                                $pImgQuality, $pFilePostfix, $pAcceptedTypes)
+{
+    if(($hndl = @opendir($pImagesDirectory)) !== false)
+    {
+        while(($file = @readdir($hndl)) !== false)
+        {
+            if($file != '.' && $file != '..')
+            {
+                if(is_file($pImagesDirectory.$file))
+                {
+                    $fileInfo = pathinfo($pImagesDirectory.$file);
+                    if(array_key_exists('extension', $fileInfo) && 
+                        (in_array(strtolower($fileInfo['extension']), $pAcceptedTypes)))
+                    {
+                        echo "Resizing {$fileInfo['basename']}\n";
+                        createnewimage($fileInfo, $pOutputDirectory, 
+                                $target, 
+                                $pImgQuality, $pFilePostfix);
+                    }
+                }
+            }
+        }
+    }
+}
+
+//********************************************************************************************
+
+/**
+ * Define some constants
+ */
+
+//The purspose of this program is to size down.
+define('MIN_ALLOW', 10);
+define('MAX_ALLOW', 100000);
+define('MIN_IMAGE_Q', 10);
+define('MAX_IMAGE_Q', 100);
+
+//Name of the directory where resized images will be saved.
+define('OUT_DIR_NAME', 'Resized');
+
+//Probably don't need to change this. If you do, change the name of the INI file as well.
+define('INI_FILE', dirname(__FILE__) . DIRECTORY_SEPARATOR . 'imageresizer.ini');
+
+//If changed here, createnewimage() must be changed accordingly.
+$acceptedTypes = array('jpg','gif','png'); 
+
+/**
+ * Program Start
+ */
+
+
+// Read some default values from the INI file
+// TODO: Add error checking
+$defaultValues = parse_ini_file(INI_FILE) or die("Where is my ini file?");
+
+echo ' ____ __  __  _   ___  ___   ___  ___  ___  _ _____ ___ ___ ', "\n";
+echo '|_  _|  \\/  |/ \ /  _/|  _| |   \\|  _|/ __/| |__  /|  _|   \\', "\n";
+echo ' _||_| |\\/| | \' |  [ \\|  _| | \' /|  _|\\__ \\| | / /_|  _| \' /', "\n";
+echo '|____|_|  |_|_|_|____/|___| |_|_\\|___|/___/|_|/____|___|_|_\\', "\n\n";
+
+echo "ImageResizer v0.1.5 Alpha - ";
+echo 'Powered by PHP ' . PHP_VERSION . ".\n";
+echo "PHP is freely available from http://www.php.net/\n";
+echo "Visit http://www.icondrawer.com for cool icons.\n\n";
+echo "You can type the full path to the images folder or...\n";
+echo "\nDrag and drop the image folder into this window,\n".
+        "  then make sure this window has the focus and press enter:\n\n>";
+
+// lets see if there is a file path on the command line...
+if($argc > 1)
+{
+    echo "Path found on command line!\n";
+    echo ">{$argv[1]}\n";
+
+    $path_parts = pathinfo($argv[1]);
+    $fileFound = false;
+
+    //lets see if there is a filename
+    if(!empty($path_parts['extension']))
+    {
+        echo ">Oh, only one file...!\n";
+        //we have a file so no need to loop
+        $fileFound = true;
+
+        //get the directory
+        $imagesDirectory = $path_parts['dirname'].DIRECTORY_SEPARATOR;
+    }
+    else
+        $imagesDirectory = $argv[1].DIRECTORY_SEPARATOR;
+}
+ else
+    $imagesDirectory = str_replace('"','',trim(fgets(STDIN))).DIRECTORY_SEPARATOR;
+ 
+
+if(!file_exists($imagesDirectory)){
+    echo "That is an invalid directory\n";
+}
+else
+{
+    if(createoutputdirectory($imagesDirectory, OUT_DIR_NAME))
+    {
+        $outputDirectory = 
+            $imagesDirectory.DIRECTORY_SEPARATOR.OUT_DIR_NAME.DIRECTORY_SEPARATOR;
+
+        if($defaultValues['silent'] != 1) // Skip interactive mode
+        {
+            echo "\nMaximum size ({$defaultValues['target']}):";
+            $target = trim(fgets(STDIN));
+            if(!($target >= MIN_ALLOW && $target <= MAX_ALLOW))
+                $target = $defaultValues['target'];
+
+            echo "Image quality ({$defaultValues['quality']}): ";
+            $imgQuality = trim(fgets(STDIN));
+            if(!($imgQuality >= MIN_IMAGE_Q && $imgQuality <= MAX_IMAGE_Q))
+                $imgQuality = $defaultValues['quality'];
+
+            echo "File postfix ({$defaultValues['postfix']}): ";
+            $filePostfix = trim(fgets(STDIN));
+            if(strlen($filePostfix) == 0)
+                $filePostfix = $defaultValues['postfix'];
+        }
+        else // silent mode, just use the settings from the ini file
+        {
+            $target = $defaultValues['target'];  
+            $imgQuality = $defaultValues['quality'];
+            $filePostfix = $defaultValues['postfix'];
+        }
+
+        if($fileFound) // no need to loop
+        {
+            echo "\nProcessing file\n";
+            
+            createnewimage($path_parts, $outputDirectory, 
+                                $target, 
+                                $imgQuality, $filePostfix);
+        }
+        else
+        {
+            echo "\nProcessing files\n";
+            
+            processimagedirectory($imagesDirectory,
+                                    $outputDirectory,
+                                    $target, 
+                                    $imgQuality, 
+                                    $filePostfix,
+                                    $acceptedTypes);
+        }
+
+        @rmdir($outputDirectory); // rmdir requires directory to be empty
+
+        echo "Finished.\n";
+    }
+    else
+        echo "Could not create output directory\n";
+
+    
+}
+exit(0);
+?>

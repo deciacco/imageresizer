@@ -1,0 +1,8 @@
+; Bamcompile project file
+mainfile printargs.php
+embed printargs.php
+embed include
+icon hal.ico
+windowed
+compress
+extension php_winbinder.dll
